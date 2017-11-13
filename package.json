@@ -3,25 +3,26 @@
 	"version": "1.1.1",
 	"description": "A tiny module that can load not only local files but remote ones and pipe them into stdout. ( Mainly designed for js/css minifying. )",
 	"main": "pipethru.js",
+	"engines": {
+		"node": ">=6.4.0"
+	},
 	"scripts": {
-		"test": "echo \"Error: no test specified\" && exit 1"
+		"test": "node test.js"
 	},
 	"bin": {
-		"pipethru": "pipethru.js"	
+		"pipethru": "./pipethru.js"
 	},
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/JCloudYu/pipethru.git"
 	},
-	"dependencies": {
-		"promise": "~7.1.1"
-	},
+	"dependencies": {},
 	"keywords": [
 		"pipe",
 		"pipethru"
 	],
-	"author": "J. Cloud Yu",
-	"license": "BSD-3-Clause",
+	"author": "JCloudYu",
+	"license": "WTFPL",
 	"bugs": {
 		"url": "https://github.com/JCloudYu/pipethru/issues"
 	},

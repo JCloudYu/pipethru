@@ -3,70 +3,135 @@
 (function(){
 	"use strict";
 
-	var loadTrigger,
-	verbose = false,
-	Promise = require( 'promise' ),
+	let
 	fs		= require( 'fs' ),
 	http	= require( 'http' ),
-	https	= require( 'https' ),
+	https	= require( 'https' );
 	
-	promiseChain = new Promise(function(fulfill){ loadTrigger = fulfill; });
-
-
-	process.argv.slice(2).forEach(function(path){
-		if ( path == "-v" ){ verbose = true; return; }
-
-		promiseChain = promiseChain.then((function( path ){
-			return function() {
-				if ( verbose ) process.stderr.write( `Processing \`${path}\`... ` );
-
-				return new Promise(function( fulfill, reject ){
+	
+	let __verbose = false, __stdout = false;
+	const exports = module.exports = (paths, env={newline:"\n"})=>{
+		let __promise	= Promise.resolve();
+		let buffersCache = [];
+		paths.forEach((item)=>{
+			__promise = __promise.then(()=>{
+				__VERBOSE( `Processing \`${item}\`...`, false );
+	
+	
+				return new Promise((fulfill)=>{
+					let protocol = item.substr(0, 7).toLowerCase(), netReq = null;
 					try {
-
-						if ( path.substr( 0, 7 ).toLowerCase() == "http://" )
-						{
-							http.get(path, function(res){
-								res.on( 'end', function(){
-									if ( verbose ) process.stderr.write( `done!\n` ); 
-									process.stdout.write( "\n" ); fulfill(); 
-								});
-								res.pipe(process.stdout);
-							})
-							.on( 'error', function( e ){ throw e; });
-
-							return;
+						switch( protocol ) {
+							case "https:/":
+								netReq = https;
+							case "http://":
+								netReq = netReq || http;
+								
+								netReq.get(item, function(res){
+									let proc = (__stdout) ? __READ_TO_STDOUT : __READ_TO_BUFFER;
+									proc( res, env.newline )
+									.then((result)=>{
+										__VERBOSE( ' done', true );
+										if ( Buffer.isBuffer(result) ) {
+											buffersCache.push(result);
+										}
+										
+										fulfill(result);
+									});
+								})
+								.on( 'error', function( e ){ throw e; });
+								break;
+							
+							default:
+								let stream = fs.createReadStream( item, {autoClose:false} );
+								let proc = (__stdout) ? __READ_TO_STDOUT : __READ_TO_BUFFER;
+									proc( stream, env.newline )
+									.then((result)=>{
+										__VERBOSE( ' done', true );
+										if ( Buffer.isBuffer(result) ) {
+											buffersCache.push(result);
+										}
+										
+										fulfill(result);
+									});
+								break;
 						}
-						
-						if ( path.substr( 0, 8 ).toLowerCase() == "https://" )
-						{
-							https.get(path, function(res){
-								res.on( 'end', function(){
-									if ( verbose ) process.stderr.write( `done!\n` ); 
-									process.stdout.write( "\n" ); fulfill(); 
-								});
-								res.pipe(process.stdout);
-							})
-							.on( 'error', function( e ){ throw e; });
-							return;
-						}
-
-						
-						var stream = fs.createReadStream( path, { autoClose:false } );
-						stream.pipe(process.stdout);
-						stream.on( 'end', function(){
-							if ( verbose ) process.stderr.write( `done!\n` ); 
-							stream.close(); process.stdout.write( "\n" ); fulfill(); 
-						});
 					}
-					catch( err )
-					{
-						process.stderr.write( ` access error!` );
+					catch( err ) {
+						__VERBOSE( ` error` );
 						fulfill();
 					}
 				});
-			};
-		})( path ));
-	});
-
-	setTimeout( loadTrigger, 0 );
+			});
+		});
+		return __promise.then(()=>{
+			return Buffer.concat(buffersCache);
+		});
+	};
+	
+	
+	
+	if ( require.main === module ) {
+		let argv = process.argv.slice(2);
+		let options = {newline:"\n"};
+		__stdout = true;
+		
+		// Eat env controlling arguments
+		let __noMore = false;
+		while(argv.length>0 && !__noMore) {
+			switch(argv[0]) {
+				case "-v":
+					__verbose = true;
+					break;
+					
+				case '-crlf':
+					options.newline = "\r\n";
+					break;
+					
+				default:
+					__noMore = true;
+					break;
+			}
+			
+			if ( !__noMore ) {
+				argv.shift();
+			}
+		}
+		exports(argv, options);
+	}
+	
+	
+	function __VERBOSE(msg, newline=true) {
+		if ( !__verbose ) return;
+		process.stderr.write( `${msg}${newline ? "\n": ''}` );
+	}
+	function __READ_TO_BUFFER(iStream, newline) {
+		return new Promise((fulfill)=>{
+			let buff = [];
+			iStream.on( 'data', (chunk)=>{ buff.push(chunk); });
+			iStream.on( 'end', ()=>{
+				buff.push(Buffer.from(newline, 'utf8'));
+				
+				iStream.unpipe();
+				iStream.removeAllListeners();
+				iStream.destroy();
+				fulfill(Buffer.concat(buff));
+				buff = null;
+			});
+		});
+	}
+	function __READ_TO_STDOUT(iStream, newline) {
+		return new Promise((fulfill, reject)=>{
+			iStream.pipe(process.stdout);
+			iStream.on( 'end', function(){
+				process.stdout.write( newline );
+				
+				iStream.unpipe();
+				iStream.removeAllListeners();
+				iStream.destroy();
+				fulfill();
+			});
+		});
+		
+	}
 })();
