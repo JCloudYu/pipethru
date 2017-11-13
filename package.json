@@ -1,6 +1,6 @@
 {
 	"name": "pipethru",
-	"version": "1.1.1",
+	"version": "1.1.2",
 	"description": "A tiny module that can load not only local files but remote ones and pipe them into stdout. ( Mainly designed for js/css minifying. )",
 	"main": "pipethru.js",
 	"engines": {
